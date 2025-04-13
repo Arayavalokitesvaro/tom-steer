@@ -14,8 +14,8 @@ ds = load_dataset("allenai/ai2_arc", "ARC-Easy")["train"]
 df = pd.DataFrame(ds)
 
 # Model and SAE configs
-models = ['gpt2', 'google/gemma-2-2b', 'EleutherAI/pythia-70m-deduped']
-saes = ['gpt2-small-res-jb', 'gemma-scope-2b-pt-res', 'pythia-70m-deduped-res-sm']
+models = ['google/gemma-2-2b', 'EleutherAI/pythia-70m-deduped']
+saes = ['gemma-scope-2b-pt-res', 'pythia-70m-deduped-res-sm']
 
 for i in range(len(models)):
     print(f"\n==== Evaluating Model: {models[i]} ====")
@@ -107,3 +107,4 @@ for i in range(len(models)):
         json.dump(avg_sae, f)
 
     print(f"💾 Saved averaged SAE activations to avg_sae_{model_name}.json")
+    torch.cuda.empty_cache()
