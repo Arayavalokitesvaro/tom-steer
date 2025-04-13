@@ -14,8 +14,8 @@ ds = load_dataset("allenai/ai2_arc", "ARC-Easy")["train"]
 df = pd.DataFrame(ds)
 
 # Model and SAE configs
-models = ['google/gemma-2-2b', 'EleutherAI/pythia-70m-deduped']
-saes = ['gemma-scope-2b-pt-res', 'pythia-70m-deduped-res-sm']
+models = ['EleutherAI/pythia-70m-deduped', 'google/gemma-2-2b']
+saes = ['pythia-70m-deduped-res-sm', 'gemma-scope-2b-pt-res']
 
 # Define the number of layers for each model
 n_layers = {
@@ -47,7 +47,7 @@ for i in range(len(models)):
     for layer in range(num_layers):
         sae, _, sparsity = SAE.from_pretrained(
             release=saes[i],
-            hook_name=get_hook_name(saes[i], layer),
+            sae_id=f"blocks.{layer}.hook_resid_post",
             device=device,
         )
         this_sae.append(sae)
