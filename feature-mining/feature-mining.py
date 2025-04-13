@@ -17,6 +17,22 @@ df = pd.DataFrame(ds)
 models = ['google/gemma-2-2b', 'EleutherAI/pythia-70m-deduped']
 saes = ['gemma-scope-2b-pt-res', 'pythia-70m-deduped-res-sm']
 
+# Define the number of layers for each model
+n_layers = {
+    'gemma-scope-2b-pt-res': 26,  # As per the SAE table
+    'pythia-70m-deduped-res-sm': 6  # As per the SAE table
+}
+
+# Function to get the hook name based on SAE and layer
+def get_hook_name(sae_name, layer):
+    if sae_name == 'gemma-scope-2b-pt-res':
+        return f"blocks.{layer}.hook_resid_post"
+    elif sae_name == 'pythia-70m-deduped-res-sm':
+        return f"blocks.{layer}.hook_mlp_out"
+    else:
+        raise ValueError(f"Unknown SAE name: {sae_name}")
+
+
 for i in range(len(models)):
     print(f"\n==== Evaluating Model: {models[i]} ====")
 
@@ -31,7 +47,7 @@ for i in range(len(models)):
     for layer in range(num_layers):
         sae, _, sparsity = SAE.from_pretrained(
             release=saes[i],
-            sae_id=f"blocks.{layer}.hook_resid_pre",
+            hook_name=get_hook_name(saes[i], layer),
             device=device,
         )
         this_sae.append(sae)
