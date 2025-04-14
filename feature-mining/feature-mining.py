@@ -15,7 +15,10 @@ df = pd.DataFrame(ds)
 
 # Model and SAE configs
 models = ['EleutherAI/pythia-70m-deduped', 'google/gemma-2-2b']
-saes = ['pythia-70m-deduped-res-sm', 'gemma-scope-2b-pt-res']
+saes = ['pythia-70m-deduped-res-sm', 'gemma-scope-2b-pt-res-canonical']
+
+models = ['google/gemma-2-2b']
+saes = ['gemma-scope-2b-pt-res-canonical']
 
 # Define the number of layers for each model
 n_layers = {
@@ -32,6 +35,13 @@ def get_hook_name(sae_name, layer):
     else:
         raise ValueError(f"Unknown SAE name: {sae_name}")
 
+def get_sae_id(sae_name, layer):
+    if sae_name == 'gemma-scope-2b-pt-res-canonical':
+        return f"layer_{layer}/width_16k/canonical"
+    elif sae_name == 'pythia-70m-deduped-res-sm':
+        return f"blocks.{layer}.hook_resid_post"
+    else:
+        raise ValueError(f"Unknown SAE name: {sae_name}")
 
 for i in range(len(models)):
     print(f"\n==== Evaluating Model: {models[i]} ====")
