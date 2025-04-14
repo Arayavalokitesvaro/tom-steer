@@ -29,6 +29,8 @@ def get_sae_id(sae_name, layer):
         return f"layer_{layer}/width_16k/canonical"
     elif sae_name == 'pythia-70m-deduped-res-sm':
         return f"blocks.{layer}.hook_resid_post"
+    elif sae_name == 'gpt2-small-res-jb':
+        return f"blocks.{layer}.hook_resid_pre"
     else:
         raise ValueError(f"Unknown SAE name: {sae_name}")
 
@@ -84,7 +86,7 @@ for i in range(len(models)):
     torch.cuda.empty_cache()
 
     # Chunked SAE evaluation (4 SAEs at a time)
-    sae_chunk_size = 4
+    sae_chunk_size = 1
     num_chunks = (num_layers + sae_chunk_size - 1) // sae_chunk_size
 
     for chunk_id in range(num_chunks):
