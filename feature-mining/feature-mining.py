@@ -24,6 +24,7 @@ saes = ['gemma-scope-2b-pt-res-canonical']
 
 n_layers = {'gemma-scope-2b-pt-res': 26}
 
+
 def get_sae_id(sae_name, layer):
     if sae_name == 'gemma-scope-2b-pt-res-canonical':
         return f"layer_{layer}/width_16k/canonical"
@@ -43,12 +44,8 @@ for i in range(len(models)):
     model.eval()
     torch.cuda.empty_cache()
 
-    # Prepare result buffer and SAE accumulator
-    layer_running_sum = [None for _ in range(num_layers)]
-    layer_token_count = [0 for _ in range(num_layers)]
-    results = []
-
     # Get model predictions and cache all logits
+    results = []
     for _, row in tqdm(df.iterrows(), total=len(df)):
         question = row["question"]
         choices = row["choices"]["text"]
@@ -56,7 +53,6 @@ for i in range(len(models)):
         answer_key = row["answerKey"]
 
         logprobs = []
-
         for choice in choices:
             prompt = f"{question} {choice}"
             input_ids = tokenizer.encode(prompt, return_tensors="pt", truncation=True, max_length=128).to(device)
@@ -85,32 +81,18 @@ for i in range(len(models)):
 
     torch.cuda.empty_cache()
 
-    # Chunked SAE evaluation (4 SAEs at a time)
-    sae_chunk_size = 1
-    num_chunks = (num_layers + sae_chunk_size - 1) // sae_chunk_size
+    # Run SAE one layer at a time and save immediately
+    for layer in range(num_layers):
+        print(f"\n🔄 Processing SAE layer {layer}")
 
-    for chunk_id in range(num_chunks):
-        start_layer = chunk_id * sae_chunk_size
-        end_layer = min((chunk_id + 1) * sae_chunk_size, num_layers)
-        print(f"\n🔄 Processing SAE layers {start_layer} to {end_layer - 1}")
+        sae, _, _ = SAE.from_pretrained(
+            release=saes[i],
+            sae_id=get_sae_id(saes[i], layer),
+            device=device
+        )
+        layer_running_sum = torch.zeros(sae.cfg.d_sae, device=device)
+        layer_token_count = 0
 
-        # Load chunk SAEs
-        chunk_sae = {}
-        for layer in range(start_layer, end_layer):
-            sae, _, _ = SAE.from_pretrained(
-                release=saes[i],
-                sae_id=get_sae_id(saes[i], layer),
-                device=device
-            )
-            chunk_sae[layer] = sae
-            torch.cuda.empty_cache()
-
-        # Initialize accumulators
-        for l in range(start_layer, end_layer):
-            layer_running_sum[l] = torch.zeros(chunk_sae[l].cfg.d_sae, device=device)
-            layer_token_count[l] = 0
-
-        # Pass all examples again
         for _, row in tqdm(df.iterrows(), total=len(df)):
             question = row["question"]
             choices = row["choices"]["text"]
@@ -119,36 +101,33 @@ for i in range(len(models)):
                 prompt = f"{question} {choice}"
                 with torch.no_grad():
                     _, cache = model.run_with_cache(prompt)
+                    resid_pre = cache[f"blocks.{layer}.hook_resid_pre"]
+                    encoded = sae.encode(resid_pre.to(device)).squeeze(0)
+                    if encoded.shape[1] != layer_running_sum.shape[0]:
+                        raise ValueError(f"[Layer {layer}] shape mismatch: got {encoded.shape}, expected {layer_running_sum.shape[0]}")
+                    layer_running_sum += encoded.sum(dim=0)
+                    layer_token_count += encoded.shape[0]
 
-                    for l in range(start_layer, end_layer):
-                        resid_pre = cache[f"blocks.{l}.hook_resid_pre"]
-                        encoded = chunk_sae[l].encode(resid_pre.to(device)).squeeze(0)
-                        if encoded.shape[1] != layer_running_sum[l].shape[0]:
-                            raise ValueError(f"[Layer {l}] shape mismatch: got {encoded.shape}, expected {layer_running_sum[l].shape[0]}")
-                        layer_running_sum[l] += encoded.sum(dim=0)
-                        layer_token_count[l] += encoded.shape[0]
+                del cache, resid_pre, encoded, prompt
+                torch.cuda.empty_cache()
 
-            torch.cuda.empty_cache()
+        # Save average SAE activation for this layer
+        avg_sae = (layer_running_sum / layer_token_count).detach().cpu().numpy().tolist()
+        model_name = models[i].split("/")[-1]
+        with open(f"avg_sae_{model_name}_layer{layer}.json", "w") as f:
+            json.dump(avg_sae, f)
+        print(f"💾 Saved avg SAE activations for layer {layer} to avg_sae_{model_name}_layer{layer}.json")
 
-        del chunk_sae
+        del sae
         torch.cuda.empty_cache()
 
     # Final accuracy
     accuracy = sum(r["correct"] for r in results) / len(results)
     print(f"✅ Model Accuracy on ARC-Easy: {accuracy:.2%}")
 
-    # Save prediction results
     model_name = models[i].split("/")[-1]
     with open(f"results_{model_name}.pkl", "wb") as f:
         pickle.dump(results, f)
+    print(f"💾 Saved prediction results to results_{model_name}.pkl")
 
-    # Save average SAE activations
-    avg_sae = [
-        (layer_running_sum[l] / layer_token_count[l]).detach().cpu().numpy().tolist()
-        for l in range(num_layers)
-    ]
-    with open(f"avg_sae_{model_name}.json", "w") as f:
-        json.dump(avg_sae, f)
-
-    print(f"💾 Saved averaged SAE activations to avg_sae_{model_name}.json")
     torch.cuda.empty_cache()
