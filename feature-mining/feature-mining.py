@@ -61,7 +61,10 @@ for i in range(len(models)):
             device=device,
         )
         this_sae.append(sae)
-        print(f"Layer {layer}: SAE loaded with sparsity {sparsity.mean().item():.2f}")
+        if sparsity is not None:
+            print(f"Layer {layer}: SAE loaded with sparsity {sparsity.mean().item():.2f}")
+        else:
+            print(f"Layer {layer}: SAE loaded, but sparsity is None (possibly missing in release)")
 
     # Online mean accumulators (sum and token counts)
     layer_running_sum = [torch.zeros(sae.cfg.d_sae, device=device) for sae in this_sae]
