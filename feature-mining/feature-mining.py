@@ -7,6 +7,7 @@ from sae_lens.sae import SAE
 import json
 import pickle
 
+torch.cuda.empty_cache()
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Load ARC-Easy dataset (first 10 examples for testing)
