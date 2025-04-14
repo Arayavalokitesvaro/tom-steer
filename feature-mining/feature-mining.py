@@ -57,7 +57,7 @@ for i in range(len(models)):
     for layer in range(num_layers):
         sae, _, sparsity = SAE.from_pretrained(
             release=saes[i],
-            sae_id=f"blocks.{layer}.hook_resid_post",
+            sae_id=get_sae_id(saes[i], layer),
             device=device,
         )
         this_sae.append(sae)
