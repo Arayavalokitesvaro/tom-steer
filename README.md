@@ -13,7 +13,7 @@ HYC wrote code to run on ToMChallenges and ARC-Easy, but the results were not go
 4. Primary goal: get average SAE activations for all layers;
 5. Secondary goal: get performance on these dataset
 
-**Note**: If `gemma-2-2b` caused not enough CUDA memory, tell HYC and just proceed with the other two models.
+**Note**: If `gemma-2-2b` caused not enough CUDA memory, tell HYC and just proceed with the other two models. Create your own branches for modification and use pull requests.
 
 ### For HYC
 1. Write code for steering and benchmarking (ToMBench, Kosinski, ToMi, etc)
