@@ -130,10 +130,14 @@ def extract_answer_after_last_question(pred_text):
         return ""  # Return empty string on any parsing failure
 
 
-def evaluate_with_baseline(data_file, few_shot_n=3, temperature=0.5):
+def evaluate_with_baseline(data_file, few_shot_n=3, temperature=0.5, num_examples=None):
     data = json.load(open(data_file))
     few_shot = data[:few_shot_n]
     eval_set = data[few_shot_n:]
+    
+    # Apply num_examples limit if specified
+    if num_examples is not None:
+        eval_set = eval_set[:num_examples]
 
     prompt_prefix = build_few_shot_prompt(few_shot)
     correct, total = 0, 0
@@ -172,22 +176,31 @@ if __name__ == '__main__':
                         help='Number of examples for few-shot prefix')
     parser.add_argument('--temperature', type=float, default=0.5,
                         help='Sampling temperature')
-    # Add output directory argument
     parser.add_argument('--output-dir', type=str, required=True,
                         help='Directory to save output files')
+    # Add num-examples argument
+    parser.add_argument('--num-examples', type=int, default=None,
+                        help='Number of evaluation examples to run (default: all)')
     args = parser.parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)  # Ensure output directory exists
+    os.makedirs(args.output_dir, exist_ok=True)
 
-    # Evaluate and get results
+    # Pass num_examples to evaluate function
     acc, corr, tot, results = evaluate_with_baseline(
         args.data_file,
         few_shot_n=args.few_shot,
-        temperature=args.temperature
+        temperature=args.temperature,
+        num_examples=args.num_examples
     )
 
-    # Save accuracy summary to text file
-    output_txt_path = os.path.join(args.output_dir, f'baseline_{tot}_shots{args.few_shot}.txt')
+    # Update filename to include num_examples if specified
+    if args.num_examples:
+        shots_suffix = f"{args.few_shot}_examples{args.num_examples}"
+    else:
+        shots_suffix = f"{args.few_shot}"
+
+    output_txt_path = os.path.join(args.output_dir, f'baseline_{tot}_shots{shots_suffix}.txt')
+
     with open(output_txt_path, 'w') as out:
         out.write(f"Baseline Accuracy: {acc:.2%} ({corr}/{tot})\n")
 
