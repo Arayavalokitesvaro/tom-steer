@@ -137,19 +137,28 @@ def evaluate_with_baseline(data_file, few_shot_n=3, temperature=0.5):
 
     prompt_prefix = build_few_shot_prompt(few_shot)
     correct, total = 0, 0
+    results = []  # List to store prediction details
 
     for item in tqdm(eval_set):
         context = " ".join(item['context'])
         prompt = f"{prompt_prefix}{context} {item['question']}"
         pred = get_prediction(prompt, temperature=temperature)
         pred_token = extract_answer_after_last_question(pred)
-        if pred_token == item['answer']:
-            correct += 1
+        is_correct = (pred_token == item['answer'])
+        correct += is_correct
         total += 1
+        results.append({
+            "context": item['context'],
+            "question": item['question'],
+            "correct_answer": item['answer'],
+            "generated_text": pred,
+            "predicted_answer": pred_token,
+            "is_correct": is_correct
+        })
         time.sleep(1)
 
     accuracy = correct / total if total else 0
-    return accuracy, correct, total
+    return accuracy, correct, total, results
 
 # ----------------------------
 # Step 4: CLI
@@ -163,18 +172,29 @@ if __name__ == '__main__':
                         help='Number of examples for few-shot prefix')
     parser.add_argument('--temperature', type=float, default=0.5,
                         help='Sampling temperature')
+    # Add output directory argument
+    parser.add_argument('--output-dir', type=str, required=True,
+                        help='Directory to save output files')
     args = parser.parse_args()
 
-    # Create output directory if it doesn't exist
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(args.output_dir, exist_ok=True)  # Ensure output directory exists
 
-    acc, corr, tot = evaluate_with_baseline(
+    # Evaluate and get results
+    acc, corr, tot, results = evaluate_with_baseline(
         args.data_file,
         few_shot_n=args.few_shot,
         temperature=args.temperature
     )
-    print(f"Baseline Accuracy: {acc:.2%} ({corr}/{tot})")
-    # Optionally save results
-    with open(f"output/baseline_{tot}_shots{args.few_shot}.txt", 'w') as out:
+
+    # Save accuracy summary to text file
+    output_txt_path = os.path.join(args.output_dir, f'baseline_{tot}_shots{args.few_shot}.txt')
+    with open(output_txt_path, 'w') as out:
         out.write(f"Baseline Accuracy: {acc:.2%} ({corr}/{tot})\n")
-    print('Results saved.')
+
+    # Save detailed predictions to JSON
+    output_json_path = os.path.join(args.output_dir, 'baseline_predictions.json')
+    with open(output_json_path, 'w') as f:
+        json.dump(results, f, indent=2)
+
+    print(f"Baseline Accuracy: {acc:.2%} ({corr}/{tot})")
+    print(f"Results saved to {output_json_path} and {output_txt_path}.")
