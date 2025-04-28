@@ -1,3 +1,4 @@
+import os
 import requests
 from tqdm import tqdm
 
@@ -86,7 +87,7 @@ def get_prediction(prompt, features, model_id="gpt2-small", temperature=0.5):
         "seed": 16,
         "strength_multiplier": 1.0,
     }
-
+    print("Payload: ", payload)
     while True:
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code == 200:
@@ -95,6 +96,9 @@ def get_prediction(prompt, features, model_id="gpt2-small", temperature=0.5):
             return result["STEERED"].strip()
         elif response.status_code == 429:  # Too Many Requests
             print("Rate limit exceeded. Retrying after a delay...")
+            time.sleep(12)  # Wait for 10 seconds before retrying
+        elif response.status_code == 500: 
+            print("Unknown Error. Retrying after a delay...")
             time.sleep(12)  # Wait for 10 seconds before retrying
         else:
             print("API error:", response.status_code, response.text)
@@ -144,7 +148,7 @@ def extract_answer_after_last_question(pred_text):
 
 
 
-def evaluate_with_steering(data, features):
+def evaluate_with_steering(data, features, modelid="gpt2-small"):
     few_shot_prompt = build_few_shot_prompt(data[:3])  # first 3 examples
     eval_data = data[3:]  # remaining examples
 
@@ -157,7 +161,7 @@ def evaluate_with_steering(data, features):
         prompt = f"{few_shot_prompt}{context} {question}"
 
         gold = item["answer"].lower()
-        pred = get_prediction(prompt, features)
+        pred = get_prediction(prompt, features, model_id=modelid)
         print(f"Response: {pred}")
 
         pred_token = extract_answer_after_last_question(pred)
@@ -182,45 +186,62 @@ def evaluate_with_steering(data, features):
 if __name__ == "__main__":
     # val_data = parse_tomi_dataset("../feature-mining/ToMi/data/val.txt")
     # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="Steering evaluation script.")
-    parser.add_argument("--modelid", type=str, required=True, help="Model ID (e.g., gpt2-small)")
-    parser.add_argument("--layer", type=str, required=True, help="Layer to steer (e.g., 11-res-jb)")
-    parser.add_argument("--index", type=int, required=True, help="Feature index to steer")
-    parser.add_argument("--strength", type=float, required=True, help="Steering strength")
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser(description="Steering evaluation script.")
+    # parser.add_argument("--modelid", type=str, required=True, help="Model ID (e.g., gpt2-small)")
+    # parser.add_argument("--layer", type=str, required=True, help="Layer to steer (e.g., 11-res-jb)")
+    # parser.add_argument("--index", type=int, required=True, help="Feature index to steer")
+    # parser.add_argument("--strength", type=float, required=True, help="Steering strength")
+    # args = parser.parse_args()
+    def run_evaluation(model, layer, index, strength):
+        output_filename = f"./output/accuracy_{model}_{layer}_index{feature}_strength{strength}.txt"
+        if os.path.exists(output_filename):
+            print(f"Output file {output_filename} already exists. Skipping...")
+            return
+        # Check if the output directory exists, if not create it
+        print(f"Running evaluation for model: {model}, layer: {layer}, index: {index}, strength: {strength}")
+        # Parse the TOMI dataset
+        # val_data = parse_tomi_dataset("../feature-mining/ToMi/data/val.txt")
+        # return val_data
+        # Use the parsed arguments
+        features = [
+            {
+                "modelId": model,
+                "layer": layer,
+                "index": feature,
+                "strength": strength
+            }
+        ]
+        # # Randomly select 100 entries from val_data
+        # small_val_data = random.sample(val_data, 100)
 
-    # Use the parsed arguments
-    features = [
-        {
-            "modelId": args.modelid,
-            "layer": args.layer,
-            "index": args.index,
-            "strength": args.strength
-        }
-    ]
-    # # Randomly select 100 entries from val_data
-    # small_val_data = random.sample(val_data, 100)
+        # # Dump the selected entries into a JSON file
+        # with open("small_val_data.json", "w") as f:
+        #     json.dump(small_val_data, f, indent=4)
+        # exit(0)
+        # Load the small validation data from the JSON file
+        with open("small_val_data.json", "r") as f:
+            val_data = json.load(f)
+        # Example: steer toward feature 3124 in layer 20 of gemma-2b SAE
+        # features = [
+        #     {
+        #         "modelId": "gpt2-small",
+        #         "layer": "11-res-jb",
+        #         "index": 89,
+        #         "strength": 2
+        #     }
+        # ]
 
-    # # Dump the selected entries into a JSON file
-    # with open("small_val_data.json", "w") as f:
-    #     json.dump(small_val_data, f, indent=4)
-    # exit(0)
-    # Load the small validation data from the JSON file
-    with open("small_val_data.json", "r") as f:
-        val_data = json.load(f)
-    # Example: steer toward feature 3124 in layer 20 of gemma-2b SAE
-    # features = [
-    #     {
-    #         "modelId": "gpt2-small",
-    #         "layer": "11-res-jb",
-    #         "index": 89,
-    #         "strength": 2
-    #     }
-    # ]
-
-    accuracy, correct, total = evaluate_with_steering(val_data, features, modelid=args.modelid)
-    # Save the accuracy result in a file
-    output_filename = f"./output/accuracy_{args.modelid}_{args.layer}_index{args.index}_strength{args.strength}.txt"
-    with open(output_filename, "w") as f:
-        f.write(f"Steering Accuracy: {accuracy:.2%} ({correct}/{total})\n")
-    print(f"Accuracy result saved to {output_filename}")
+        accuracy, correct, total = evaluate_with_steering(val_data, features, modelid=model)
+        # Save the accuracy result in a file
+        
+        with open(output_filename, "w") as f:
+            f.write(f"Steering Accuracy: {accuracy:.2%} ({correct}/{total})\n")
+        print(f"Accuracy result saved to {output_filename}")
+    import pandas as pd
+    df = pd.read_csv("./steer-list.csv")
+    for _, row in df.iterrows():
+        model = row["model"]
+        layer = row["layer"]
+        feature = row["feature"]
+        for strength in [5.0, 10.0, 15.0]:
+            run_evaluation(model, layer, feature, strength)

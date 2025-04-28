@@ -59,6 +59,69 @@ def parse_tomi_dataset(file_path):
 
     return stories
 
+def parse_babi_dataset(file_path):
+    stories = []
+    current_story = []
+
+    with open(file_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Split into line number and content
+            split_idx = line.find(' ')
+            line_id = int(line[:split_idx])
+            content = line[split_idx + 1:]
+
+            # If a new story starts (line_id == 1 and current_story not empty)
+            if line_id == 1 and current_story:
+                # Process the previous story
+                context_lines = [s for (i, s) in current_story[:-1]]
+                question_line = current_story[-1][1]
+
+                try:
+                    q_part, rest = question_line.split('?', 1)
+                    question = q_part.strip() + '?'
+                    answer = rest.strip().split()[0]
+                except:
+                    question = question_line.strip()
+                    answer = ""
+
+                stories.append({
+                    "context": context_lines,
+                    "question": question,
+                    "answer": answer,
+                    "prompt": f"{context_lines} {question_line} {answer}"
+                })
+
+                # Start new story
+                current_story = []
+
+            current_story.append((line_id, content))
+
+        # Handle last story at EOF
+        if current_story:
+            context_lines = [s for (i, s) in current_story[:-1]]
+            question_line = current_story[-1][1]
+
+            try:
+                q_part, rest = question_line.split('?', 1)
+                question = q_part.strip() + '?'
+                answer = rest.strip().split()[0]
+            except:
+                question = question_line.strip()
+                answer = ""
+
+            stories.append({
+                "context": context_lines,
+                "question": question,
+                "answer": answer,
+                "prompt": f"{context_lines} {question_line} {answer}"
+            })
+
+    return stories
+
 # ----------------------------
 # Step 2: Call Neuronpedia /api/steer
 # ----------------------------

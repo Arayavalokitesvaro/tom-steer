@@ -1,3 +1,12 @@
+# import kagglehub
+
+# # Download latest version
+# path = kagglehub.dataset_download("roblexnana/the-babi-tasks-for-nlp-qa-system")
+
+# print(path)
+
+# /Users/AdamNg/.cache/kagglehub/datasets/roblexnana/the-babi-tasks-for-nlp-qa-system/versions/1
+
 from datasets import load_dataset
 import pandas as pd
 import torch
@@ -7,23 +16,10 @@ from sae_lens.sae import SAE
 import json
 import os
 import sys
-import random
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'common')))
 import common.utils as utils
 
-# val_data =utils.parse_tomi_dataset("../feature-mining/ToMi/data/val.txt")
-
-# # Randomly sample 2000 entries from val_data
-# sampled_data = random.sample(val_data, min(2000, len(val_data)))
-
-# # Dump the sampled data into val_2000.json
-# with open("val_2000.json", "w") as f:
-#     json.dump(sampled_data, f)
-# exit(0)
-
-# Load val_data from val_2000.json
-with open("val_2000.json", "r") as f:
-    val_data = json.load(f)
+val_data =utils.parse_babi_dataset("../feature-mining/data/qa5_three-arg-relations_train.txt")
 output_dir = "../feature-mining/output"
 if not os.path.exists(output_dir):  # Check if the directory exists
     os.makedirs(output_dir)  # Create the directory if it doesn't exist
@@ -82,7 +78,7 @@ for i in range(len(models)):
     results = []
     for _, row in tqdm(df.iterrows(), total=len(df)):
 
-        prompt = f"{row['context']} {row['question']} {row['answer']}"
+        prompt = row['prompt']
         input_ids = tokenizer.encode(prompt, return_tensors="pt", truncation=True, max_length=128).to(device)
 
         with torch.no_grad():
@@ -107,13 +103,13 @@ for i in range(len(models)):
     for layer in range(num_layers):
         avg_sae = (saes_by_layer[layer]["running_sum"] / saes_by_layer[layer]["token_count"]).detach().cpu().numpy().tolist()
 
-        output_file = f"{output_dir}/{model_name}_avg_sae_layer{layer}.json"
+        output_file = f"{output_dir}/{model_name}_avg_base_layer{layer}.json"
         try:
             with open(output_file, "w") as f:
                 json.dump(avg_sae, f)
         except IOError as e:
             print(f"Failed to write to {output_file}: {e}")
-        print(f"💾 Saved avg SAE activations for layer {layer} to avg_sae_{model_name}_layer{layer}.json")
+        print(f"💾 Saved avg SAE activations for layer {layer} to avg_base_{model_name}_layer{layer}.json")
 
         del saes_by_layer[layer]["sae"]
         torch.cuda.empty_cache()

@@ -1,0 +1,10 @@
+model,layer,feature
+gpt2-small,11-res-jb,14940
+gpt2-small,9-res-jb,8598
+gpt2-small,7-res-jb,4242
+gpt2-small,2-res-jb,1794
+gpt2-small,11-res-jb,9185
+gpt2-small,9-res-jb,12003
+pythia-70m-deduped,5-res-sm,9130
+pythia-70m-deduped,5-res-sm,2974
+pythia-70m-deduped,4-res-sm,21988
